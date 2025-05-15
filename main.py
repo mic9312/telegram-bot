@@ -2,7 +2,11 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 # ✅ 替换成你自己的 Bot Token（来自 BotFather）
-BOT_TOKEN = "7813649440:AAFFr95FUq_uH5jodVDaDGopHDyQRuoEVX4"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 WELCOME_MESSAGE = """您好，欢迎来到小美按摩预约服务 🤖
 
