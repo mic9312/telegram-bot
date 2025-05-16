@@ -1,0 +1,36 @@
+{
+  "price": [
+    "价格",
+    "价钱",
+    "多少钱",
+    "how much",
+    "harga",
+    "rate",
+    "price"
+  ],
+  "booking": [
+    "预约",
+    "book",
+    "order",
+    "schedule"
+  ],
+  "location": [
+    "地址",
+    "在哪",
+    "location",
+    "map",
+    "jalan"
+  ],
+  "service": [
+    "服务",
+    "service",
+    "包含",
+    "内容"
+  ],
+  "promotion": [
+    "优惠",
+    "promo",
+    "折扣",
+    "offer"
+  ]
+}
