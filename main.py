@@ -3,21 +3,27 @@ import json
 import re
 import datetime
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, CallbackQueryHandler, filters
+from fastapi import FastAPI, Request
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext.fastapi import get_webhook_listener
 
-# 1. 加载环境变量
+# ├─── 1. FastAPI App ───
+app = FastAPI()
+
+# ├─── 2. 加载环境变量 ───
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_CHAT_ID = os.getenv("GROUP_CHAT_ID")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # 你的 Render 网址
 
-# 2. 加载关键词和回复映射
+# ├─── 3. 加载数据 ───
 with open("keywords.json", "r", encoding="utf-8") as f:
     KEYWORDS = json.load(f)
 with open("reply_map.json", "r", encoding="utf-8") as f:
     REPLY_MAP = json.load(f)
 
-# 3. 意图识别函数
+# ├─── 4. 定义加密功能 ───
 def detect_intent(user_input: str) -> str:
     user_input = user_input.lower()
     for intent, words in KEYWORDS.items():
@@ -25,7 +31,6 @@ def detect_intent(user_input: str) -> str:
             return intent
     return None
 
-# 4. 保存预约记录
 def save_appointment(username, tech, time, store, status="pending"):
     record = {
         "user": username,
@@ -45,59 +50,50 @@ def save_appointment(username, tech, time, store, status="pending"):
         f.seek(0)
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# 5. 菜单按钮
-def get_main_menu():
-    keyboard = [
-        ["📅 我要预约", "👩‍📫 查看技师"],
-        ["📍 查地址", "💬 联系客服"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+WELCOME_MESSAGE = """\
+🤖 您好，欢迎来到小美按摩预约服务
 
-# 6. 欢迎消息
-WELCOME_MESSAGE = """您好，欢迎来到小美按摩预约服务 🤖
+- 按摩 + 陪聊
+- 房间舒适干净
+- 现金付款
 
-我们提供如下服务内容（全程可镜）：
-- 按摩 + 陪聊 💆‍♀️
-- 房间舒适干净 🛏️
-- 现金付款 💵
+⏰ 营业时间：11am ～ 4am
+📍 服务地点：Ampang / Kajang / Seremban / Mahkota
 
-🕒 营业时间：每天 11am - 4am  
-📍 可服务地点：Ampang / Kajang / Seremban / Mahkota
+🔹 请直接输入预约的分店 + 技师名字
+"""
 
-📌 请直接输入您想预约的分店和技师名字 😊"""
-
+# ├─── 5. 处理函数 ───
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(WELCOME_MESSAGE, reply_markup=get_main_menu())
+    await update.message.reply_text(WELCOME_MESSAGE)
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     action = query.data
-    await query.edit_message_text(text=f"✅ 店长操作完成：{action}")
+    await query.edit_message_text(f"✅ 店长操作已执行：{action}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("Group Chat ID =", update.effective_chat.id)
     user_text = update.message.text.strip().lower()
-    match = re.search(r"(预约|book)\s*(\w+)\s*(下午|am|pm)?\s*([\d:]+)?\s*@?(\w+)?", user_text)
+    match = re.search(r"(book|\u9884\u7ea6)\s*(\w+)\s*(\d+:\d+|\d+[ap]m)?\s*@?(\w+)?", user_text)
     if match:
         tech = match.group(2)
-        time = match.group(4) or "未填写时间"
-        store = match.group(5) or "未注明分店"
+        time = match.group(3) or "未填写时间"
+        store = match.group(4) or "未注明分店"
         username = update.message.from_user.username or update.message.from_user.first_name
-
         save_appointment(username, tech, time, store)
-        await update.message.reply_text(f"📥 预约请求已提交：\n技师：{tech}\n时间：{time}\n分店：{store}\n\n请稍候店长确认 ✅")
+        await update.message.reply_text(f"✉ 预约提交成功\n技师：{tech}\n时间：{time}\n分店：{store}\n请等待店长确认")
 
         if GROUP_CHAT_ID:
             buttons = [[
                 InlineKeyboardButton("✅ 接受", callback_data=f"接受预约：{username}-{tech}"),
                 InlineKeyboardButton("❌ 拒绝", callback_data=f"拒绝预约：{username}-{tech}")
             ]]
-            reply_markup = InlineKeyboardMarkup(buttons)
+            markup = InlineKeyboardMarkup(buttons)
             await context.bot.send_message(
                 chat_id=GROUP_CHAT_ID,
-                text=f"📥 新预约请求：\n客户：{username}\n技师：{tech}\n时间：{time}\n分店：{store}\n\n请确认是否接受：",
-                reply_markup=reply_markup
+                text=f"\n✉ 新预约：{username}\n技师：{tech}\n时间：{time}\n分店：{store}\n请确认是否接受",
+                reply_markup=markup
             )
         return
 
@@ -105,14 +101,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if intent and intent in REPLY_MAP:
         await update.message.reply_text(REPLY_MAP[intent])
     else:
-        await update.message.reply_text("🤖 我还不太明白您的意思，请输入“价格”或“预约”等关键词试试看～")
+        await update.message.reply_text("\ud83e\udd16 我暂时看不懂，请输入 \"\u4ef7\u683c\" \"\u9884\u7ea6\" 等关键词试试~")
 
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_polling()
+# ├─── 6. Telegram Bot 应用 ───
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(handle_callback))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-if __name__ == "__main__":
-    main()
+# ├─── 7. 接入 webhook 到 FastAPI ───
+webhook_listener = get_webhook_listener(application, domain=WEBHOOK_URL, path="/webhook")
+app.include_router(webhook_listener, prefix="")
+
+# └───请确保 .env 里有以下三项：
+# BOT_TOKEN=xxxx
+# GROUP_CHAT_ID=-100xxxx
+# WEBHOOK_URL=https://your-web-url.onrender.com
