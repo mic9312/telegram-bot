@@ -76,6 +76,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(text=f"✅ 店长操作完成：{action}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("Group Chat ID =", update.effective_chat.id)
     user_text = update.message.text.strip().lower()
     match = re.search(r"(预约|book)\s*(\w+)\s*(下午|am|pm)?\s*([\d:]+)?\s*@?(\w+)?", user_text)
     if match:
