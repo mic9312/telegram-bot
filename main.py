@@ -21,16 +21,19 @@ application = ApplicationBuilder().token(BOT_TOKEN).build()
 with open("therapists.json", "r", encoding="utf-8") as f:
     THERAPISTS = json.load(f)
 
-# ───── 指令：/start ─────
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ───── 主按钮键盘 ─────
+def main_menu_keyboard():
     buttons = [
         [KeyboardButton("我要预约"), KeyboardButton("查看技师")],
         [KeyboardButton("联系客服")]
     ]
-    reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+# ───── 指令：/start ─────
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "欢迎使用 Ai Captain Bot 🤖\n您可以点击下方按钮或输入 ‘价格’, ‘预约’, ‘技师’ 等关键词试试！",
-        reply_markup=reply_markup
+        reply_markup=main_menu_keyboard()
     )
 
 application.add_handler(CommandHandler("start", start))
@@ -39,28 +42,37 @@ application.add_handler(CommandHandler("start", start))
 async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     if any(word in text for word in ["价格", "price", "多少钱", "berapa", "how much"]):
-        await update.message.reply_text("我们的价格如下：RM180 起，欢迎预约！")
+        await update.message.reply_text("我们的价格如下：RM180 起，欢迎预约！", reply_markup=main_menu_keyboard())
 
     elif any(word in text for word in ["预约", "book"]):
-        await update.message.reply_text("请提供技师名字、时间、分店名，例如：预约 Mymy 下午3点 @Ampang")
+        await update.message.reply_text("请提供技师名字、时间、分店名，例如：预约 Mymy 下午3点 @Ampang", reply_markup=main_menu_keyboard())
 
     elif any(word in text for word in ["技师", "小姐", "girl", "therapist"]):
         await send_therapist_list(update, context)
 
-    elif "我要预约" in text:
-        await update.message.reply_text("请直接输入：预约 + 技师名字 + 时间 + 分店名，如 ‘预约 Mymy 下午3点 @Ampang’")
+    elif any(word in text for word in ["我要预约"]):
+        await update.message.reply_text("请直接输入：预约 + 技师名字 + 时间 + 分店名，如 ‘预约 Mymy 下午3点 @Ampang’", reply_markup=main_menu_keyboard())
 
     elif "查看技师" in text:
         await send_therapist_list(update, context)
 
     elif "联系客服" in text:
-        await update.message.reply_text("您可直接联系 Ai Captain，或加入我们的频道了解更多资讯。")
+        await update.message.reply_text("您可直接联系 Ai Captain，或加入我们的频道了解更多资讯。", reply_markup=main_menu_keyboard())
+
+    elif any(word in text for word in ["hi", "嗨", "哈啰", "哈咯", "老板", "boss", "bro", "pm", "有开吗"]):
+        await update.message.reply_text(
+            "欢迎使用 Ai Captain Bot 🤖\n您可以点击下方按钮或输入 ‘价格’, ‘预约’, ‘技师’ 等关键词试试！",
+            reply_markup=main_menu_keyboard()
+        )
 
     elif "预约" in text and "@" in text:
         await process_booking(update, context)
 
     else:
-        await update.message.reply_text("🤖 我还不太明白您的意思，可以输入 ‘价格’, ‘预约’ 或 ‘技师’ 试试看～")
+        await update.message.reply_text(
+            "🤖 我还不太明白您的意思，可以输入 ‘价格’, ‘预约’ 或 ‘技师’ 试试看～",
+            reply_markup=main_menu_keyboard()
+        )
 
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_reply))
 
